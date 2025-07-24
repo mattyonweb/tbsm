@@ -8,19 +8,6 @@ from django.utils import timezone
 from accounts.models import CustomUser
 from corporations.models import Corporation
 
-# ==========================================================================
-# Tradable objects
-
-class Material(models.Model):
-    full_name = models.CharField(max_length=96, blank=False, null=False, verbose_name="Full name")
-    ticker    = models.CharField(max_length=8, blank=False, null=False, verbose_name="Ticker")
-
-
-class Currency(models.Model):
-    full_name = models.CharField(max_length=96, blank=False, null=False, verbose_name="Full name")
-    ticker = models.CharField(max_length=8, blank=False, null=False, verbose_name="Ticker")
-
-
 # ====================================================================================================================
 # ====================================================================================================================
 # Contracts
@@ -93,15 +80,15 @@ class TimelyAction(models.Model):
             case _:
                 raise Exception("Not yet implemented")
 
-ta_bond_coupon_payment = TimelyAction(
-    regularity=TimelyAction.Regularity.EVERY,
-    every=datetime.timedelta(days=30),
-    repeat_times=4
-)
-ta_bond_final_payment = TimelyAction(
-    regularity=TimelyAction.Regularity.EXACTLY_IN,
-    exactly_in=datetime.timedelta(days=120)
-)
+# ta_bond_coupon_payment = TimelyAction(
+#     regularity=TimelyAction.Regularity.EVERY,
+#     every=datetime.timedelta(days=30),
+#     repeat_times=4
+# )
+# ta_bond_final_payment = TimelyAction(
+#     regularity=TimelyAction.Regularity.EXACTLY_IN,
+#     exactly_in=datetime.timedelta(days=120)
+# )
 
 # ===============================================================================================================
 
@@ -130,7 +117,7 @@ class RepaymentTemplate(models.Model):
         verbose_name="Variable amount formula"
     )
 
-    traded_thing = models.ForeignKey(Thing, on_delete=models.CASCADE, blank=False, null=False)
+    traded_thing = models.ForeignKey("things.Thing", on_delete=models.CASCADE, blank=False, null=False)
 
     def __str__(self):
         match self.variability:
@@ -150,16 +137,16 @@ class RepaymentTemplate(models.Model):
 
 
 
-rp_bond_coupon = RepaymentTemplate(
-    timely_action=ta_bond_coupon_payment,
-    variability=RepaymentTemplate.Variability.FIXED,
-    fixed_amount=Decimal("3.5")
-)
-rp_bond_final_payment = RepaymentTemplate(
-    timely_action=ta_bond_final_payment,
-    variability=RepaymentTemplate.Variability.FIXED,
-    fixed_amount=Decimal("100")
-)
+# rp_bond_coupon = RepaymentTemplate(
+#     timely_action=ta_bond_coupon_payment,
+#     variability=RepaymentTemplate.Variability.FIXED,
+#     fixed_amount=Decimal("3.5")
+# )
+# rp_bond_final_payment = RepaymentTemplate(
+#     timely_action=ta_bond_final_payment,
+#     variability=RepaymentTemplate.Variability.FIXED,
+#     fixed_amount=Decimal("100")
+# )
 
 # =============================================================================================
 
@@ -253,25 +240,3 @@ class PaymentScheduler(models.Model):
 #
 # )
 
-class Thing(models.Model):
-    material = models.ForeignKey(Material, on_delete=models.CASCADE, null=True, blank=True)
-    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, null=True, blank=True)
-    currency = models.ForeignKey(Currency, on_delete=models.CASCADE, null=True, blank=True)
-
-    class Meta:
-        constraints = [
-            CheckConstraint(
-                check=(
-                    Q(material__isnull=False, contract__isnull=True, currency__isnull=True) |
-                    Q(material__isnull=True, contract__isnull=False, currency__isnull=True) |
-                    Q(material__isnull=True, contract__isnull=True, currency__isnull=False)
-                ),
-                name='mutual_exclusion_thing',
-            ),
-        ]
-
-
-class Ownership(models.Model):
-    corporation = models.ForeignKey(Corporation, on_delete=models.CASCADE, null=False, blank=False)
-    thing  = models.ForeignKey(Thing, on_delete=models.CASCADE, null=False, blank=False)
-    amount = models.DecimalField(max_digits=24, decimal_places=2)

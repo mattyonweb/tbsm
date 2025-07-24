@@ -34,6 +34,3 @@ class CustomUserAdmin(UserAdmin):
 
 
 admin.site.register(CustomUser, CustomUserAdmin)
-admin.site.register(TimelyAction)
-admin.site.register(RepaymentTemplate)
-admin.site.register(Contract)
