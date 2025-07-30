@@ -1,4 +1,5 @@
 import datetime
+import logging
 from decimal import Decimal
 
 from django.db import models
@@ -8,6 +9,8 @@ from django.utils import timezone
 
 from accounts.models import CustomUser
 from corporations.models import Corporation
+
+logger = logging.getLogger("contracts_models")
 
 # ====================================================================================================================
 # ====================================================================================================================
@@ -248,7 +251,7 @@ class PaymentScheduler(models.Model):
 
             # Handle variable amount (should be a formula, but for now treat as decimal)
             if isinstance(repayment_amount, dict):
-                print(f"WARNING: Variable payment formulas not yet implemented for payment {self.id}")
+                logger.warning(f"Variable payment formulas not yet implemented for payment {self.id}")
                 raise Exception("Not yet implemented")
 
             # Get the thing being transferred from the repayment template
@@ -262,14 +265,14 @@ class PaymentScheduler(models.Model):
             # Update payment status
             if transferred_amount == repayment_amount:
                 self.paid = True
-                print(f"Payment {self.id} completed: {transferred_amount} of {thing_to_transfer}")
+                logger.info(f"Payment {self.id} completed: {transferred_amount} of {thing_to_transfer}")
             else:
                 self.missed_payment = True
-                print(
+                logger.warning(
                     f"Payment {self.id} partially completed: {transferred_amount}/{repayment_amount} of {thing_to_transfer}")
 
             if has_bankrupted:
-                print(f"Corporation {emitter.ticker} declared bankrupt during payment {self.id}")
+                logger.error(f"Corporation {emitter.ticker} declared bankrupt during payment {self.id}")
 
             self.save()
 

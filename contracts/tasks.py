@@ -1,5 +1,8 @@
 import datetime
+import logging
 from contracts.models import PaymentScheduler
+
+logger = logging.getLogger("contracts_tasks")
 
 
 def execute_scheduled_payments(scheduled_date: datetime.datetime, delta: datetime.timedelta=datetime.timedelta(seconds=60)):
@@ -32,11 +35,11 @@ def execute_scheduled_payments(scheduled_date: datetime.datetime, delta: datetim
     )
 
     if already_checked.exists():
-        print(f"WARNING: Found {already_checked.count()} payments already checked in this time window")
+        logger.warning(f"Found {already_checked.count()} payments already checked in this time window")
     if should_have_been_checked:
-        print(f"WARNING: Found {already_checked.count()} payments that should have been already checked in this time window")
+        logger.warning(f"Found {should_have_been_checked.count()} payments that should have been already checked in this time window")
 
-    print(f"Numero pagamenti schedulati: {payments.count()}")
+    logger.info(f"Processing {payments.count()} scheduled payments")
 
     # Process each payment atomically
     for payment in payments:

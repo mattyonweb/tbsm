@@ -1,6 +1,7 @@
 import datetime
 from decimal import Decimal
 from django.test import TestCase
+from django.utils import timezone
 from hypothesis import given, strategies as st, settings
 from hypothesis.extra.django import TestCase as HypothesisTestCase
 
@@ -80,7 +81,7 @@ class TestPaymentExecution(HypothesisTestCase):
         payment_scheduler = PaymentScheduler.objects.create(
             contract=contract,
             repayment=repayment,
-            ts=datetime.datetime.now()
+            ts=timezone.now() #timezone.now()
         )
         
         # Execute the payment
@@ -146,7 +147,7 @@ class TestPaymentExecution(HypothesisTestCase):
         payment_scheduler = PaymentScheduler.objects.create(
             contract=contract,
             repayment=repayment,
-            ts=datetime.datetime.now()
+            ts=timezone.now()
         )
         
         # Execute the payment
@@ -211,7 +212,7 @@ class TestPaymentExecution(HypothesisTestCase):
         payment_scheduler = PaymentScheduler.objects.create(
             contract=contract,
             repayment=repayment,
-            ts=datetime.datetime.now()
+            ts=timezone.now()
         )
         
         # Execute the payment
@@ -284,7 +285,7 @@ class TestPaymentExecution(HypothesisTestCase):
             payment_scheduler = PaymentScheduler.objects.create(
                 contract=contract,
                 repayment=repayment,
-                ts=datetime.datetime.now()
+                ts=timezone.now()
             )
             payment_schedulers.append(payment_scheduler)
         
@@ -344,7 +345,7 @@ class TestPaymentExecution(HypothesisTestCase):
         payment_scheduler = PaymentScheduler.objects.create(
             contract=contract,
             repayment=repayment,
-            ts=datetime.datetime.now()
+            ts=timezone.now()
         )
         
         # Should raise exception
@@ -383,7 +384,7 @@ class TestPaymentExecution(HypothesisTestCase):
         payment_scheduler = PaymentScheduler.objects.create(
             contract=contract,
             repayment=repayment,
-            ts=datetime.datetime.now()
+            ts=timezone.now()
         )
         
         # Execute payment twice
