@@ -3,7 +3,6 @@ import logging
 from decimal import Decimal
 
 from django.db import models
-from django.db.models import CheckConstraint, Q
 from django.db.transaction import atomic
 from django.utils import timezone
 
@@ -178,44 +177,6 @@ class Contract(models.Model):
                 PaymentScheduler.objects.get_or_create(contract=self, repayment=repay, ts=date)
 
         self.save()
-
-
-
-
-def create_bond_fixed(nominal_price: Decimal, coupon_percentage:Decimal=None, coupon_money:Decimal=None):
-    assert not (coupon_percentage is None and coupon_money is None)
-
-    coupon_val = 0
-    if coupon_percentage is not None:
-        coupon_val = nominal_price * coupon_percentage
-    if coupon_money is not None:
-        coupon_val += coupon_money
-
-    ta_bond_coupon_payment, _ = TimelyAction.objects.get_or_create(
-        regularity=TimelyAction.Regularity.EVERY,
-        every=datetime.timedelta(days=30),
-        repeat_times=4
-    )
-    ta_bond_final_payment, _ = TimelyAction.objects.get_or_create(
-        regularity=TimelyAction.Regularity.EXACTLY_IN,
-        exactly_in=datetime.timedelta(days=120)
-    )
-    rp_bond_coupon, _ = RepaymentTemplate.objects.get_or_create(
-        timely_action=ta_bond_coupon_payment,
-        variability=RepaymentTemplate.Variability.FIXED,
-        fixed_amount=coupon_val
-    )
-    rp_bond_final_payment, _ = RepaymentTemplate.objects.get_or_create(
-        timely_action=ta_bond_final_payment,
-        variability=RepaymentTemplate.Variability.FIXED,
-        fixed_amount=nominal_price
-    )
-
-    ct = Contract()
-    ct.nominal_price = nominal_price
-    ct.save()
-    ct.repayments.set([rp_bond_coupon, rp_bond_final_payment])
-    ct.save()
 
 
 # ==============================================================================
