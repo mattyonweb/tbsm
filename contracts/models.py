@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.db import models
 from django.db.models import CheckConstraint, Q
+from django.db.transaction import atomic
 from django.utils import timezone
 
 from accounts.models import CustomUser
@@ -221,9 +222,58 @@ class PaymentScheduler(models.Model):
     contract  = models.ForeignKey(Contract, on_delete=models.CASCADE, null=False, blank=False, verbose_name="Contract")
     repayment = models.ForeignKey(RepaymentTemplate, on_delete=models.CASCADE, null=False, blank=False, verbose_name="Repayment")
     ts        = models.DateTimeField(null=False, blank=False, verbose_name="Repayment date")
-    checked   = models.BooleanField(default=False, verbose_name="Payment was checked at or nearly after the due date")
+    was_processed = models.BooleanField(default=False, verbose_name="Payment was checked at or nearly after the due date")
     paid      = models.BooleanField(default=False, verbose_name="Paid")
     missed_payment = models.BooleanField(default=False, verbose_name="Missed payment")
+
+    def perform_payment(self):
+        with atomic():
+            if self.was_processed:
+                # TODO: log an error
+                return
+
+            # Mark as checked first to prevent double processing
+            self.was_processed = True
+            self.save(update_fields=["was_processed"]) # TODO: unneded in atomic?
+
+            emitter: Corporation  = self.contract.emitter
+            receiver: Corporation = self.contract.receiver
+
+            # There should always be a receiver!
+            if not receiver:
+                raise Exception("Contract was not activated, but was scheduled?")
+
+            # Get the amount to transfer from the repayment template
+            repayment_amount = self.repayment.absolutize_amount()
+
+            # Handle variable amount (should be a formula, but for now treat as decimal)
+            if isinstance(repayment_amount, dict):
+                print(f"WARNING: Variable payment formulas not yet implemented for payment {self.id}")
+                raise Exception("Not yet implemented")
+
+            # Get the thing being transferred from the repayment template
+            thing_to_transfer = self.repayment.traded_thing
+
+            # Execute the transfer
+            transferred_amount, has_bankrupted = emitter.transfer_ownership(
+                thing_to_transfer, repayment_amount, receiver
+            )
+
+            # Update payment status
+            if transferred_amount == repayment_amount:
+                self.paid = True
+                print(f"Payment {self.id} completed: {transferred_amount} of {thing_to_transfer}")
+            else:
+                self.missed_payment = True
+                print(
+                    f"Payment {self.id} partially completed: {transferred_amount}/{repayment_amount} of {thing_to_transfer}")
+
+            if has_bankrupted:
+                print(f"Corporation {emitter.ticker} declared bankrupt during payment {self.id}")
+
+            self.save()
+
+
 
 # Create your models here.
 # Contract(

@@ -25,24 +25,56 @@ class Corporation(models.Model):
         return Ownership.objects.filter(corporation=self, thing=thing).first()
 
     def pay(self, amount: Decimal, to: "Corporation") -> tuple[Decimal, bool]:
-        # TODO: diventa un special case di transfer ownership
+        """
+        A shortcut for an exchange of currency.
+        :param amount:
+        :param to:
+        :return:
+        """
+        from things.models import Thing, Ownership, Currency
+        
+        euro_currency = Currency.objects.filter(ticker="€").first()
+        euro_thing = Thing.objects.filter(currency=euro_currency).first()
+
+        return self.transfer_ownership(euro_thing, amount, to)
+
+    def transfer_ownership(self, thing: "Thing", amount: Decimal, to: "Corporation") -> tuple[Decimal, bool]:
+        from things.models import Ownership
+        
         with atomic():
-            payable_amount = min(amount, self.balance)
-            bankrupt       = payable_amount < amount
+            # Get or create ownership for the payer
+            payer_ownership, _ = Ownership.objects.get_or_create(
+                corporation=self, 
+                thing=thing,
+                defaults={'amount': Decimal(0)}
+            )
+            
+            # Calculate how much can actually be transferred
+            transferable_amount = min(amount, payer_ownership.amount)
+            bankrupt = transferable_amount < amount
+            
             if bankrupt:
                 self.bankrupt = timezone.now()
-            to.balance += payable_amount
-            to.save()
-            self.save()
+                self.save()
+            
+            if transferable_amount > 0:
+                # Reduce payer's ownership
+                payer_ownership.amount -= transferable_amount
+                payer_ownership.save()
+                
+                # Get or create ownership for the receiver
+                receiver_ownership, _ = Ownership.objects.get_or_create(
+                    corporation=to,
+                    thing=thing,
+                    defaults={'amount': Decimal(0)}
+                )
+                
+                # Increase receiver's ownership
+                receiver_ownership.amount += transferable_amount
+                receiver_ownership.save()
+                
+                # Remove ownership record if amount becomes zero
+                if payer_ownership.amount == 0:
+                    payer_ownership.delete()
 
-        return payable_amount, bankrupt
-
-    def transfer_ownership(self, obj, amount: Decimal, to: "Corporation"):
-        with atomic():
-            payable_amount = min(amount, self.balance)
-            bankrupt       = payable_amount < amount
-            if bankrupt:
-                self.bankrupt = timezone.now()
-            to.balance += payable_amount
-            to.save()
-            self.save()
+        return transferable_amount, bankrupt
