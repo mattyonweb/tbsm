@@ -8,10 +8,16 @@ class Material(models.Model):
     full_name = models.CharField(max_length=96, blank=False, null=False, verbose_name="Full name")
     ticker    = models.CharField(max_length=8, blank=False, null=False, verbose_name="Ticker")
 
+    def __str__(self):
+        return self.ticker
+
 
 class Currency(models.Model):
     full_name = models.CharField(max_length=96, blank=False, null=False, verbose_name="Full name")
     ticker = models.CharField(max_length=8, blank=False, null=False, verbose_name="Ticker")
+
+    def __str__(self):
+        return self.ticker
 
 
 # Create your models here.
@@ -31,6 +37,14 @@ class Thing(models.Model):
                 name='mutual_exclusion_thing',
             ),
         ]
+
+    def __str__(self):
+        if self.material:
+            return self.material.__str__()
+        if self.currency:
+            return self.currency.__str__()
+        if self.contract:
+            return self.contract.__str__()
 
 class Ownership(models.Model):
     corporation = models.ForeignKey("corporations.Corporation", on_delete=models.CASCADE, null=False, blank=False)

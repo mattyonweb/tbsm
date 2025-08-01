@@ -8,7 +8,8 @@ from django.utils import timezone
 
 from accounts.models import CustomUser
 from contracts import slfps
-from corporations.models import Corporation
+from contracts.slfps import formula_human_readable
+from corporations.models import Corporation, TransactionLog
 
 logger = logging.getLogger("contracts_models")
 
@@ -128,7 +129,7 @@ class RepaymentTemplate(models.Model):
             case RepaymentTemplate.Variability.FIXED:
                 return f"{self.fixed_amount}€ {self.timely_action}"
             case RepaymentTemplate.Variability.VARIABLE:
-                return f"{self.variable_amount}€ {self.timely_action}"
+                return f"{formula_human_readable(self.variable_amount['formula'])} {self.timely_action}"
         raise Exception("unreachable")
 
 
@@ -185,17 +186,20 @@ class ScheduledPayment(models.Model):
         Returns:
             Decimal: The calculated payment amount
         """
+        # When the payment is simple:
         if self.repayment.variability == RepaymentTemplate.Variability.FIXED:
             return self.repayment.fixed_amount
 
+        # When the payment has to be calculated in real time
         complex_payment = self.repayment.variable_amount
         formula = complex_payment["formula"]
         return slfps.calculate(formula, self)
 
+
     def perform_payment(self):
         with atomic():
             if self.was_processed:
-                # TODO: log an error
+                logger.error("Attempted to perform a payment already paid", extra={"scheduled_payment": self})
                 return
 
             # Mark as checked first to prevent double processing
@@ -234,7 +238,15 @@ class ScheduledPayment(models.Model):
 
             self.save()
 
-
+            log = TransactionLog()
+            log.giver = emitter
+            log.taker = receiver
+            log.thing = thing_to_transfer
+            log.amount_scheduled = repayment_amount
+            log.amount_actually_given = transferred_amount
+            log.causal = "Contract scheduled payment"
+            log.payment_schedule = self
+            log.save()
 
 # Create your models here.
 # Contract(

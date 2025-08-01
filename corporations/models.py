@@ -1,12 +1,14 @@
 from decimal import Decimal
 
 from django.db import models
+from django.db.models import DO_NOTHING, CASCADE
 from django.db.transaction import atomic
 from django.utils import timezone
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from contracts.models import Thing, Ownership
+    from contracts.models import ScheduledPayment
+    from things.models import Thing, Ownership, Currency
 
 
 # Create your models here.
@@ -14,6 +16,9 @@ class Corporation(models.Model):
     full_name = models.CharField(max_length=96, blank=False, null=False, verbose_name="Full name")
     ticker    = models.CharField(max_length=8, blank=False, null=False, verbose_name="Ticker")
     bankrupt  = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return self.ticker
 
     @property
     def cash(self) -> Decimal:
@@ -78,3 +83,21 @@ class Corporation(models.Model):
                     payer_ownership.delete()
 
         return transferable_amount, bankrupt
+
+
+class TransactionLog(models.Model):
+    giver = models.ForeignKey(Corporation, on_delete=DO_NOTHING, related_name="giver", null=False)
+    taker = models.ForeignKey(Corporation, on_delete=DO_NOTHING, related_name="taker", null=False)
+    thing = models.ForeignKey("things.Thing", on_delete=DO_NOTHING, null=False)
+    amount_scheduled = models.DecimalField(max_digits=15, decimal_places=2, null=False, blank=False)
+    amount_actually_given = models.DecimalField(max_digits=15, decimal_places=2, null=False, blank=False)
+    timestamp = models.DateTimeField(auto_now_add=True, null=False)
+    causal = models.CharField(max_length=256, blank=False, null=True)
+    payment_schedule = models.ForeignKey("contracts.ScheduledPayment", on_delete=CASCADE, null=False)
+
+    @property
+    def was_defaulted(self):
+        return self.amount_actually_given < self.amount_scheduled
+
+    def __str__(self):
+        return f"{self.timestamp} - {self.causal}"

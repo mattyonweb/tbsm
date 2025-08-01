@@ -51,3 +51,21 @@ def calculate(formula: list|str, scheduled_payment: "ScheduledPayment") -> Decim
 
     return FUNCTIONS[function_name](*[calculate(arg, scheduled_payment) for arg in args])
 
+
+def formula_human_readable(formula: str | list):
+    if isinstance(formula, str):
+        if re.fullmatch(is_number_regex, formula):
+            return formula
+        if formula in VARIABLES:
+            return formula
+        raise Exception(f"Unexpected token: {formula}")
+
+    function_name, *args = formula
+    if function_name not in FUNCTIONS:
+        raise SLFPS_Exception(f"Unknown function: {function_name}")
+
+    if function_name == "%":
+        return f"{formula_human_readable(args[1])}% of {formula_human_readable(args[0])}"
+    if function_name in ["+", "-", "*", "/"]:
+        return f"{formula_human_readable(args[0])} {function_name} {formula_human_readable(args[1])}"
+    return f"{function_name}({[formula_human_readable(arg) for arg in args]})"
