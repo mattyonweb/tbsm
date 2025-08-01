@@ -6,7 +6,7 @@ from hypothesis import given, strategies as st, settings
 from hypothesis.extra.django import TestCase as HypothesisTestCase
 
 from accounts.models import CustomUser
-from contracts.models import Contract, RepaymentTemplate, TimelyAction, PaymentScheduler
+from contracts.models import Contract, RepaymentTemplate, TimelyAction, ScheduledPayment
 from corporations.models import Corporation
 from things.models import Thing, Currency, Material, Ownership
 
@@ -78,7 +78,7 @@ class TestPaymentExecution(HypothesisTestCase):
         contract.activate(receiver=receiver)
 
         # Create payment scheduler directly (skip activation timing logic)
-        payment_scheduler = PaymentScheduler.objects.create(
+        payment_scheduler = ScheduledPayment.objects.create(
             contract=contract,
             repayment=repayment,
             ts=timezone.now() #timezone.now()
@@ -144,7 +144,7 @@ class TestPaymentExecution(HypothesisTestCase):
         contract.repayments.set([repayment])
         contract.activate(receiver=receiver)
 
-        payment_scheduler = PaymentScheduler.objects.create(
+        payment_scheduler = ScheduledPayment.objects.create(
             contract=contract,
             repayment=repayment,
             ts=timezone.now()
@@ -209,7 +209,7 @@ class TestPaymentExecution(HypothesisTestCase):
         contract.repayments.set([repayment])
         contract.activate(receiver=receiver)
 
-        payment_scheduler = PaymentScheduler.objects.create(
+        payment_scheduler = ScheduledPayment.objects.create(
             contract=contract,
             repayment=repayment,
             ts=timezone.now()
@@ -282,7 +282,7 @@ class TestPaymentExecution(HypothesisTestCase):
                 traded_thing=self.euro_thing
             )
             
-            payment_scheduler = PaymentScheduler.objects.create(
+            payment_scheduler = ScheduledPayment.objects.create(
                 contract=contract,
                 repayment=repayment,
                 ts=timezone.now()
@@ -342,7 +342,7 @@ class TestPaymentExecution(HypothesisTestCase):
         contract = Contract.objects.create(nominal_price=Decimal("100"), emitter=emitter)
         contract.repayments.set([repayment])
         
-        payment_scheduler = PaymentScheduler.objects.create(
+        payment_scheduler = ScheduledPayment.objects.create(
             contract=contract,
             repayment=repayment,
             ts=timezone.now()
@@ -381,7 +381,7 @@ class TestPaymentExecution(HypothesisTestCase):
         contract.repayments.set([repayment])
         contract.activate(receiver=receiver)
 
-        payment_scheduler = PaymentScheduler.objects.create(
+        payment_scheduler = ScheduledPayment.objects.create(
             contract=contract,
             repayment=repayment,
             ts=timezone.now()

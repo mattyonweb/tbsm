@@ -1,6 +1,6 @@
 import datetime
 import logging
-from contracts.models import PaymentScheduler
+from contracts.models import ScheduledPayment
 
 logger = logging.getLogger("contracts_tasks")
 
@@ -14,21 +14,21 @@ def execute_scheduled_payments(scheduled_date: datetime.datetime, delta: datetim
         delta: Time window to look ahead for payments (default 60 seconds)
     """
     # Get all payments scheduled within the time window that haven't been checked yet
-    payments = PaymentScheduler.objects.filter(
+    payments = ScheduledPayment.objects.filter(
         ts__gte=scheduled_date, 
         ts__lt=scheduled_date + delta,
         checked=False
     )
 
     # Check if there are any payments that were already checked (shouldn't happen)
-    already_checked = PaymentScheduler.objects.filter(
+    already_checked = ScheduledPayment.objects.filter(
         ts__gte=scheduled_date,
         ts__lt=scheduled_date + delta,
         checked=True
     )
 
     # Check if there are any payments that were already checked (shouldn't happen)
-    should_have_been_checked = PaymentScheduler.objects.filter(
+    should_have_been_checked = ScheduledPayment.objects.filter(
         ts__gte=scheduled_date - delta,
         ts__lt=scheduled_date,
         checked=True

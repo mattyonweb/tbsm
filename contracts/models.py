@@ -140,17 +140,6 @@ class RepaymentTemplate(models.Model):
 
 
 
-# rp_bond_coupon = RepaymentTemplate(
-#     timely_action=ta_bond_coupon_payment,
-#     variability=RepaymentTemplate.Variability.FIXED,
-#     fixed_amount=Decimal("3.5")
-# )
-# rp_bond_final_payment = RepaymentTemplate(
-#     timely_action=ta_bond_final_payment,
-#     variability=RepaymentTemplate.Variability.FIXED,
-#     fixed_amount=Decimal("100")
-# )
-
 # =============================================================================================
 
 class Contract(models.Model):
@@ -173,8 +162,10 @@ class Contract(models.Model):
 
         for repay in self.repayments.all():
             dates: list = repay.timely_action.absolutize(self.activated)
-            for date in dates:
-                PaymentScheduler.objects.get_or_create(contract=self, repayment=repay, ts=date)
+            for i, date in enumerate(dates):
+                ScheduledPayment.objects.get_or_create(
+                    contract=self, repayment=repay, ts=date, execution_order=i
+                )
 
         self.save()
 
@@ -182,9 +173,10 @@ class Contract(models.Model):
 # ==============================================================================
 
 
-class PaymentScheduler(models.Model):
+class ScheduledPayment(models.Model):
     contract  = models.ForeignKey(Contract, on_delete=models.CASCADE, null=False, blank=False, verbose_name="Contract")
     repayment = models.ForeignKey(RepaymentTemplate, on_delete=models.CASCADE, null=False, blank=False, verbose_name="Repayment")
+    execution_order = models.SmallIntegerField(verbose_name="Execution order", null=False, blank=False, default=0)
     ts        = models.DateTimeField(null=False, blank=False, verbose_name="Repayment date")
     was_processed = models.BooleanField(default=False, verbose_name="Payment was checked at or nearly after the due date")
     paid      = models.BooleanField(default=False, verbose_name="Paid")
