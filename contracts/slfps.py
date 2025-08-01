@@ -13,7 +13,9 @@ import random
 import re
 from decimal import Decimal
 
-from contracts.models import RepaymentTemplate, ScheduledPayment
+from utils.calculations import percent
+
+# Note: ScheduledPayment type is used as parameter but imported at runtime to avoid circular imports
 
 is_number_regex = re.compile(r"[\-\+]?[0-9]+(\.[0-9]+)?")
 
@@ -22,7 +24,7 @@ FUNCTIONS = {
     "-": lambda x,y: x-y,
     "*": lambda x,y: x*y,
     "/": lambda x,y: x/y,
-    "%": lambda whole,perc: whole * perc / Decimal(100),
+    "%": lambda whole,perc: percent(whole, perc),
     "random": lambda: Decimal(random.random()).quantize(Decimal('.0001'), rounding=decimal.ROUND_DOWN)
 }
 NON_PREDICTABLE_FUNCTIONS = ["random"]
@@ -35,7 +37,7 @@ VARIABLES = {
 class SLFPS_Exception(Exception):
     pass
 
-def calculate(formula: list|str, scheduled_payment: ScheduledPayment):
+def calculate(formula: list|str, scheduled_payment: "ScheduledPayment") -> Decimal:
     if isinstance(formula, str):
         if re.fullmatch(is_number_regex, formula):
             return Decimal(formula)

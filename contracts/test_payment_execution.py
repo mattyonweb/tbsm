@@ -9,6 +9,7 @@ from accounts.models import CustomUser
 from contracts.models import Contract, RepaymentTemplate, TimelyAction, ScheduledPayment
 from corporations.models import Corporation
 from things.models import Thing, Currency, Material, Ownership
+from utils.calculations import percent
 
 
 class TestPaymentExecution(HypothesisTestCase):
@@ -401,3 +402,109 @@ class TestPaymentExecution(HypothesisTestCase):
         
         self.assertEqual(initial_receiver_balance, final_receiver_balance)
         self.assertEqual(initial_emitter_balance, final_emitter_balance)
+
+    @given(
+        nominal_price=st.decimals(min_value=Decimal("1000"), max_value=Decimal("10000"), places=2),
+        initial_coupon_rate=st.decimals(min_value=Decimal("1.5"), max_value=Decimal("3.0"), places=2),
+        coupon_increase=st.decimals(min_value=Decimal("0.25"), max_value=Decimal("1.0"), places=2),
+        num_payments=st.integers(min_value=2, max_value=6),
+        emitter_balance_multiplier=st.decimals(min_value=Decimal("2"), max_value=Decimal("5"), places=2)
+    )
+    @settings(max_examples=20, deadline=2000)
+    def test_step_up_bond_variable_payments(self, nominal_price, initial_coupon_rate, coupon_increase, num_payments, emitter_balance_multiplier):
+        """Test step-up bond with variable coupon payments using SLFPS formulas."""
+        # Create corporations
+        emitter = Corporation.objects.create(full_name="Bond Issuer", ticker="BOND")
+        receiver = Corporation.objects.create(full_name="Bond Buyer", ticker="BUYR")
+        
+        # Calculate total expected payments to ensure sufficient funding
+        total_expected = Decimal('0')
+        for i in range(num_payments):
+            coupon_rate = initial_coupon_rate + (coupon_increase * i)
+            payment = (nominal_price * coupon_rate / Decimal('100.00')).quantize(Decimal('0.01'))
+            total_expected += payment
+        
+        # Give emitter sufficient balance
+        initial_balance = total_expected * emitter_balance_multiplier
+        Ownership.objects.create(
+            corporation=emitter,
+            thing=self.euro_thing,
+            amount=initial_balance
+        )
+        
+        # Create timely action for multiple payments
+        timely_action = TimelyAction.objects.create(
+            regularity=TimelyAction.Regularity.EVERY,
+            every=datetime.timedelta(days=90),  # Quarterly payments
+            repeat_times=num_payments
+        )
+        
+        # Create variable repayment template with step-up formula
+        # Formula: nominal_price * (initial_rate + (increase * execution_order)) / 100
+        step_up_formula = [
+            "%",
+            "nominal_price",
+            ["+", str(initial_coupon_rate), ["*", str(coupon_increase), "execution_order"]]
+        ]
+        
+        repayment = RepaymentTemplate.objects.create(
+            timely_action=timely_action,
+            variability=RepaymentTemplate.Variability.VARIABLE,
+            variable_amount={"formula": step_up_formula},
+            traded_thing=self.euro_thing
+        )
+        
+        # Create and activate contract
+        contract = Contract.objects.create(nominal_price=nominal_price, emitter=emitter)
+        contract.repayments.set([repayment])
+        contract.activate(receiver=receiver)
+        
+        # Get all scheduled payments created by activation
+        scheduled_payments = ScheduledPayment.objects.filter(contract=contract).order_by('execution_order')
+        
+        # Verify correct number of payments were created
+        self.assertEqual(len(scheduled_payments), num_payments)
+        
+        # Execute all payments and verify step-up behavior
+        total_transferred = Decimal('0')
+        for i, payment in enumerate(scheduled_payments):
+            # Calculate expected amount for this payment
+            expected_coupon_rate = initial_coupon_rate + (coupon_increase * i)
+            expected_amount = percent(nominal_price, expected_coupon_rate)
+            
+            # Test absolutize_amount calculation
+            calculated_amount = payment.absolutize_amount()
+            self.assertEqual(calculated_amount, expected_amount)
+            
+            # Execute the payment
+            payment.perform_payment()
+            
+            # Verify payment was successful
+            payment.refresh_from_db()
+            self.assertTrue(payment.was_processed)
+            self.assertTrue(payment.paid)
+            self.assertFalse(payment.missed_payment)
+            
+            total_transferred += expected_amount
+        
+        # Verify final balances
+        emitter_ownership = Ownership.objects.filter(corporation=emitter, thing=self.euro_thing).first()
+        receiver_ownership = Ownership.objects.filter(corporation=receiver, thing=self.euro_thing).first()
+        
+        expected_emitter_balance = initial_balance - total_transferred
+        expected_receiver_balance = total_transferred
+        
+        if expected_emitter_balance > 0:
+            self.assertIsNotNone(emitter_ownership)
+            self.assertAlmostEqual(emitter_ownership.amount, expected_emitter_balance.quantize(Decimal("1.00")), 2)
+        else:
+            self.assertIsNone(emitter_ownership)
+        
+        self.assertIsNotNone(receiver_ownership)
+        self.assertAlmostEqual(receiver_ownership.amount, expected_receiver_balance.quantize(Decimal("1.00")), 2)
+        
+        # Verify that coupon rates actually increased over time
+        if num_payments > 1:
+            first_payment_amount = scheduled_payments[0].absolutize_amount()
+            last_payment_amount = scheduled_payments[num_payments-1].absolutize_amount()
+            self.assertGreater(last_payment_amount, first_payment_amount)

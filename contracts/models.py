@@ -7,6 +7,7 @@ from django.db.transaction import atomic
 from django.utils import timezone
 
 from accounts.models import CustomUser
+from contracts import slfps
 from corporations.models import Corporation
 
 logger = logging.getLogger("contracts_models")
@@ -130,14 +131,6 @@ class RepaymentTemplate(models.Model):
                 return f"{self.variable_amount}€ {self.timely_action}"
         raise Exception("unreachable")
 
-    def absolutize_amount(self) -> Decimal | dict:
-        match self.variability:
-            case RepaymentTemplate.Variability.FIXED:
-                return self.fixed_amount
-            case RepaymentTemplate.Variability.VARIABLE:
-                return self.variable_amount
-        raise Exception("unreachable")
-
 
 
 # =============================================================================================
@@ -182,6 +175,23 @@ class ScheduledPayment(models.Model):
     paid      = models.BooleanField(default=False, verbose_name="Paid")
     missed_payment = models.BooleanField(default=False, verbose_name="Missed payment")
 
+    def absolutize_amount(self) -> Decimal:
+        """
+        Calculate the actual payment amount for this scheduled payment.
+        
+        Returns the fixed amount if the repayment is fixed, or evaluates
+        the variable formula using the SLFPS interpreter if variable.
+        
+        Returns:
+            Decimal: The calculated payment amount
+        """
+        if self.repayment.variability == RepaymentTemplate.Variability.FIXED:
+            return self.repayment.fixed_amount
+
+        complex_payment = self.repayment.variable_amount
+        formula = complex_payment["formula"]
+        return slfps.calculate(formula, self)
+
     def perform_payment(self):
         with atomic():
             if self.was_processed:
@@ -200,12 +210,7 @@ class ScheduledPayment(models.Model):
                 raise Exception("Contract was not activated, but was scheduled?")
 
             # Get the amount to transfer from the repayment template
-            repayment_amount = self.repayment.absolutize_amount()
-
-            # Handle variable amount (should be a formula, but for now treat as decimal)
-            if isinstance(repayment_amount, dict):
-                logger.warning(f"Variable payment formulas not yet implemented for payment {self.id}")
-                raise Exception("Not yet implemented")
+            repayment_amount = self.absolutize_amount()
 
             # Get the thing being transferred from the repayment template
             thing_to_transfer = self.repayment.traded_thing

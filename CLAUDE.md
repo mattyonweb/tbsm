@@ -86,6 +86,11 @@ The project uses property-based testing with Hypothesis to generate random but m
 - Payment execution logic is partially implemented in `contracts/tasks.py` (incomplete)
 - Database constraints enforce mutual exclusion in `Thing` model
 
+## Useful trivia
+
+- To calculate a percentage, use `percentage` from `common/calculations.py`
+
+
 ## Authentication & Settings
 
 - Uses Django's default session-based authentication
