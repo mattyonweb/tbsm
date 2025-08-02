@@ -253,7 +253,7 @@ class ScheduledPayment(models.Model):
 
 
 class Rating(models.Model):
-    corporation = models.ForeignKey(Corporation, on_delete=models.CASCADE, null=False, blank=False)
+    corporation = models.OneToOneField(Corporation, on_delete=models.CASCADE)
     rating      = models.DecimalField(max_digits=8, decimal_places=5, null=False, blank=False)
     is_newbie   = models.BooleanField(default=False) # TODO: messo in creazione utente e tolto dopo 7gg.
 
