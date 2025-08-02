@@ -34,8 +34,10 @@ class Corporation(models.Model):
 
     def has_how_many(self, thing: "Thing") -> Decimal:
         from things.models import Ownership
-        own, _created = Ownership.objects.get_or_create(corporation=self, thing=thing, defaults={"amount": Decimal(0)})
-        return own.amount
+        own = Ownership.objects.filter(corporation=self, thing=thing).first()
+        if own:
+            return own.amount
+        return Decimal(0)
 
     def pay(self, amount: Decimal, to: "Corporation") -> tuple[Decimal, bool]:
         """
@@ -53,42 +55,42 @@ class Corporation(models.Model):
 
     def transfer_ownership(self, thing: "Thing", amount: Decimal, to: "Corporation") -> tuple[Decimal, bool]:
         from things.models import Ownership
-        
+
         with atomic():
             # Get or create ownership for the payer
             payer_ownership, _ = Ownership.objects.get_or_create(
-                corporation=self, 
+                corporation=self,
                 thing=thing,
                 defaults={'amount': Decimal(0)}
             )
-            
+
             # Calculate how much can actually be transferred
             transferable_amount = min(amount, payer_ownership.amount)
             bankrupt = transferable_amount < amount
-            
+
             if bankrupt:
                 self.bankrupt = timezone.now()
                 self.save()
-            
+
             if transferable_amount > 0:
                 # Reduce payer's ownership
                 payer_ownership.amount -= transferable_amount
                 payer_ownership.save()
-                
+
                 # Get or create ownership for the receiver
                 receiver_ownership, _ = Ownership.objects.get_or_create(
                     corporation=to,
                     thing=thing,
                     defaults={'amount': Decimal(0)}
                 )
-                
+
                 # Increase receiver's ownership
                 receiver_ownership.amount += transferable_amount
                 receiver_ownership.save()
-                
-                # Remove ownership record if amount becomes zero
-                if payer_ownership.amount == 0:
-                    payer_ownership.delete()
+
+            # Remove ownership record if amount becomes zero
+            if payer_ownership.amount == 0:
+                payer_ownership.delete()
 
         return transferable_amount, bankrupt
 
