@@ -29,6 +29,9 @@ class Corporation(models.Model):
     def has(self, thing: "Thing") -> Optional["Ownership"] :
         return Ownership.objects.filter(corporation=self, thing=thing).first()
 
+    def has_how_many(self, thing: "Thing") -> Decimal:
+        return Ownership.objects.get_or_create(corporation=self, thing=thing, defaults={"amount": Decimal(0)}).amount
+
     def pay(self, amount: Decimal, to: "Corporation") -> tuple[Decimal, bool]:
         """
         A shortcut for an exchange of currency.

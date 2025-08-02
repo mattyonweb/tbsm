@@ -10,6 +10,8 @@ from accounts.models import CustomUser
 from contracts import slfps
 from contracts.slfps import formula_human_readable
 from corporations.models import Corporation, TransactionLog
+from utils.calculations import clip
+from utils.models import BaseLogModel
 
 logger = logging.getLogger("contracts_models")
 
@@ -248,18 +250,48 @@ class ScheduledPayment(models.Model):
             log.payment_schedule = self
             log.save()
 
-# Create your models here.
-# Contract(
-#     initial_conditions={
-#         "nominal_price": 100,
-#         "conditions_on_buyer": [],
-#         "conditions_on_seller": [],
-#         "custom_attributes":{}
-#     },
-#     repayments=[
-#         ("every", datetime.timedelta(days=7), "times", 4, lambda cnt: cnt.initial_conditions["nominal_price"] * Decimal("3.15")),
-#         ("finally", )
-#     }
-#
-# )
 
+
+class Rating(models.Model):
+    corporation = models.ForeignKey(Corporation, on_delete=models.CASCADE, null=False, blank=False)
+    rating      = models.DecimalField(max_digits=8, decimal_places=5, null=False, blank=False)
+    is_newbie   = models.BooleanField(default=False) # TODO: messo in creazione utente e tolto dopo 7gg.
+
+    @staticmethod
+    def payment_was_ok(self, sp: ScheduledPayment, amount: Decimal):
+        corp: Corporation = sp.contract.emitter
+        current_amount = corp.has_how_many(sp.repayment.traded_thing)
+
+        if current_amount == 0:
+            increase = 2
+        else:
+            increase = clip(2 * (amount / current_amount).quantize(Decimal("1.0000")), 0, 2)
+
+        rating = Rating.objects.get(corporation=corp)
+        rating.rating = clip(rating.rating + increase, 0, 100)
+        rating.save()
+
+        RatingLog.objects.create(
+            rating=rating, delta=increase, scheduled_payment=sp
+        )
+
+    @staticmethod
+    def payment_was_not_ok(self, sp: ScheduledPayment, amount_expected: Decimal, amount_paid: Decimal):
+        corp: Corporation = sp.contract.emitter
+
+        decrease = -40
+
+        rating = Rating.objects.get(corporation=corp)
+        rating.rating = clip(rating.rating + decrease, 0, 100)
+        rating.save()
+
+        RatingLog.objects.create(
+            rating=rating, delta=decrease, scheduled_payment=sp
+        )
+
+
+class RatingLog(BaseLogModel):
+    rating = models.ForeignKey(Rating, on_delete=models.CASCADE)
+    # theoretical_delta = models.DecimalField(max_digits=8, decimal_places=4)
+    delta      = models.DecimalField(max_digits=8, decimal_places=4)
+    scheduled_payment = models.ForeignKey(ScheduledPayment, on_delete=models.CASCADE)
