@@ -2,7 +2,9 @@ from decimal import Decimal
 
 from django.db import models
 from django.db.models import DO_NOTHING, CASCADE
+from django.db.models.signals import post_save
 from django.db.transaction import atomic
+from django.dispatch import receiver
 from django.utils import timezone
 from typing import TYPE_CHECKING, Optional
 
@@ -27,10 +29,13 @@ class Corporation(models.Model):
         return Decimal(0)
 
     def has(self, thing: "Thing") -> Optional["Ownership"] :
+        from things.models import Ownership
         return Ownership.objects.filter(corporation=self, thing=thing).first()
 
     def has_how_many(self, thing: "Thing") -> Decimal:
-        return Ownership.objects.get_or_create(corporation=self, thing=thing, defaults={"amount": Decimal(0)}).amount
+        from things.models import Ownership
+        own, _created = Ownership.objects.get_or_create(corporation=self, thing=thing, defaults={"amount": Decimal(0)})
+        return own.amount
 
     def pay(self, amount: Decimal, to: "Corporation") -> tuple[Decimal, bool]:
         """
@@ -104,3 +109,14 @@ class TransactionLog(models.Model):
 
     def __str__(self):
         return f"{self.timestamp} - {self.causal}"
+
+
+@receiver(post_save, sender=Corporation)
+def create_corporation_rating(sender, instance, created, **kwargs):
+    if created:
+        from contracts.models import Rating
+        Rating.objects.create(
+            corporation=instance,
+            rating=Decimal('85'),
+            is_newbie=True
+        )

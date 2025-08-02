@@ -230,10 +230,12 @@ class ScheduledPayment(models.Model):
             if transferred_amount == repayment_amount:
                 self.paid = True
                 logger.info(f"Payment {self.id} completed: {transferred_amount} of {thing_to_transfer}")
+                Rating.payment_was_ok(self, transferred_amount)
             else:
                 self.missed_payment = True
                 logger.warning(
                     f"Payment {self.id} partially completed: {transferred_amount}/{repayment_amount} of {thing_to_transfer}")
+                Rating.payment_was_not_ok(self, repayment_amount, transferred_amount)
 
             if has_bankrupted:
                 logger.error(f"Corporation {emitter.ticker} declared bankrupt during payment {self.id}")
@@ -258,7 +260,7 @@ class Rating(models.Model):
     is_newbie   = models.BooleanField(default=False) # TODO: messo in creazione utente e tolto dopo 7gg.
 
     @staticmethod
-    def payment_was_ok(self, sp: ScheduledPayment, amount: Decimal):
+    def payment_was_ok(sp: ScheduledPayment, amount: Decimal):
         corp: Corporation = sp.contract.emitter
         current_amount = corp.has_how_many(sp.repayment.traded_thing)
 
@@ -276,7 +278,7 @@ class Rating(models.Model):
         )
 
     @staticmethod
-    def payment_was_not_ok(self, sp: ScheduledPayment, amount_expected: Decimal, amount_paid: Decimal):
+    def payment_was_not_ok(sp: ScheduledPayment, amount_expected: Decimal, amount_paid: Decimal):
         corp: Corporation = sp.contract.emitter
 
         decrease = -40
