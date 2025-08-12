@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_tbsm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tbsm
+      POSTGRES_USER: tbsm_user
+      POSTGRES_PASSWORD: your_secure_password_here
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "0.0.0.0:5432:5432"  # Bind to all interfaces, not just localhost
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d  # Optional: for initialization scripts
+    command: >
+      postgres 
+      -c listen_addresses='*'
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+    networks:
+      - postgres_network
+
+  neo4j:
+    image: neo4j:5-community
+    container_name: neo4j_tbsm
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - postgres_network
+
+volumes:
+  postgres_data:
+    driver: local
+  neo4j_data:
+    driver: local
+
+networks:
+  postgres_network:
+    driver: bridge

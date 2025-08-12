@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -41,7 +41,8 @@ INSTALLED_APPS = [
     "accounts",
     "contracts",
     "corporations",
-    "things"
+    "things",
+    "world"
 ]
 
 MIDDLEWARE = [
@@ -185,3 +186,15 @@ LOGGING = {
         },
     },
 }
+
+
+from neomodel import config
+
+NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", None)
+NEO4J_HOSTNAME = os.getenv("NEO4J_HOSTNAME", "localhost")
+NEO4J_PORT = os.getenv("NEO4J_PORT", "7687")
+
+# Neo4j connection configuration
+# config.DATABASE_URL = 'bolt://neo4j:password@localhost:7687'
+config.DATABASE_URL = f'bolt://{NEO4J_USERNAME}:{NEO4J_PASSWORD}@{NEO4J_HOSTNAME}:{NEO4J_PORT}'
